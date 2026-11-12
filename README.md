@@ -1,79 +1,101 @@
-# Backend 1 - User Service
+# User Service — Backend Node.js
 
-Backend en Node.js (JavaScript) para gestión de usuarios con base de datos MySQL.
+[![CI](https://github.com/Daartw/BackJs_Eval3_Docker/actions/workflows/ci.yml/badge.svg)](https://github.com/Daartw/BackJs_Eval3_Docker/actions/workflows/ci.yml)
+
+API REST de gestión de usuarios construida con **Node.js, Express y MySQL**, empaquetada con Docker.
+Es uno de los tres servicios de una aplicación full stack dockerizada:
+
+| Servicio | Repositorio | Puerto |
+|---|---|---|
+| Usuarios (este) | `BackJs_Eval3_Docker` | 8081 |
+| Productos | [BackPy_Eval3_Docker](https://github.com/Daartw/BackPy_Eval3_Docker) | 8082 |
+| Frontend | [Front_Eval3_Docker](https://github.com/Daartw/Front_Eval3_Docker) | 80 |
 
 ## Características
 
-- API REST para gestión de usuarios
-- Registro de usuarios con validación
-- Base de datos MySQL
-- Configuración vía archivo .env
+- Registro de usuarios con validación de entrada.
+- Contraseñas almacenadas con hash **scrypt** y sal (nunca en texto plano ni en las respuestas).
+- Rutas administrativas protegidas con API key.
+- Límite de peticiones por IP, cabeceras de seguridad y CORS configurable.
+- Imagen Docker sin root, con *healthcheck*.
+- Pruebas automatizadas y auditoría de dependencias en CI.
 
 ## Requisitos
 
-- Node.js 18 o superior
+- Node.js 20 o superior
 - MySQL 8.0 o superior
-- npm
 
 ## Configuración
 
-1. Copiar el archivo de ejemplo:
 ```bash
 cp .env.example .env
 ```
 
-2. Editar `.env` con sus credenciales de MySQL:
-```
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=tu_password
-DB_NAME=users_db
-PORT=8081
-```
+| Variable | Descripción |
+|---|---|
+| `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | Conexión a MySQL |
+| `PORT` | Puerto del servicio (por defecto 8081) |
+| `NODE_ENV` | `production` exige definir `CORS_ORIGINS` |
+| `CORS_ORIGINS` | Orígenes del frontend autorizados, separados por coma |
+| `ADMIN_API_KEY` | Clave de las rutas administrativas (cabecera `X-API-Key`) |
+| `SEED_ADMIN_PASSWORD` | Opcional: crea el usuario `admin` inicial con esa contraseña |
+| `REGISTER_RATE_LIMIT`, `API_RATE_LIMIT` | Opcional: límites de peticiones por IP |
+| `TRUST_PROXY` | Opcional: proxies inversos de confianza delante del servicio |
 
-3. Crear la base de datos en MySQL:
+Crea la base de datos y un usuario propio para el servicio (evita usar `root`):
+
 ```sql
 CREATE DATABASE users_db;
-```
-
-## Instalación
-
-```bash
-npm install
+CREATE USER 'users_app'@'%' IDENTIFIED BY 'una_clave_segura';
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE ON users_db.* TO 'users_app'@'%';
 ```
 
 ## Ejecutar
 
 ```bash
-npm start
+npm ci
+npm start        # producción
+npm run dev      # desarrollo con recarga automática
+npm test         # pruebas
 ```
 
-Para desarrollo con auto-reload:
+Con Docker:
+
 ```bash
-npm run dev
+docker build -t backjs_eval3 .
+docker run --rm -p 8081:8081 --env-file .env backjs_eval3
 ```
-
-El servidor iniciará en el puerto 8081.
 
 ## Endpoints
 
-- `POST /api/users/register` - Registrar nuevo usuario
-- `GET /api/users` - Obtener todos los usuarios
-- `GET /api/users/{id}` - Obtener usuario por ID
-- `GET /api/users/username/{username}` - Obtener usuario por username
-- `DELETE /api/users/{id}` - Eliminar usuario
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| GET | `/health` | Público | Estado del servicio y de la base de datos |
+| POST | `/api/users/register` | Público (con límite) | Registrar un usuario |
+| GET | `/api/users` | `X-API-Key` | Listar usuarios |
+| GET | `/api/users/{id}` | `X-API-Key` | Obtener un usuario por id |
+| GET | `/api/users/username/{username}` | `X-API-Key` | Obtener un usuario por nombre |
+| DELETE | `/api/users/{id}` | `X-API-Key` | Eliminar un usuario |
 
-## Ejemplo de Uso
+Registrar un usuario (contraseña de 8 a 128 caracteres):
 
-Registrar usuario:
 ```bash
 curl -X POST http://localhost:8081/api/users/register \
   -H "Content-Type: application/json" \
-  -d '{"username":"juan","email":"juan@example.com","password":"123456"}'
+  -d '{"username":"juan","email":"juan@example.com","password":"una-clave-larga"}'
 ```
 
-Obtener usuarios:
+Listar usuarios:
+
 ```bash
-curl http://localhost:8081/api/users
+curl http://localhost:8081/api/users -H "X-API-Key: $ADMIN_API_KEY"
 ```
+
+## Seguridad
+
+Ver [SECURITY.md](SECURITY.md) para las medidas implementadas y cómo reportar una vulnerabilidad.
+Al arrancar, el servicio convierte a hash cualquier contraseña antigua guardada en texto plano.
+
+## Autor
+
+Daniel Araya Rebolledo — [@Daartw](https://github.com/Daartw)
