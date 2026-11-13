@@ -1,5 +1,5 @@
 # Servicio de usuarios (Node.js + Express)
-FROM node:24-alpine
+FROM node:25-alpine
 
 ENV NODE_ENV=production
 WORKDIR /app
